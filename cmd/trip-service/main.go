@@ -34,9 +34,11 @@ func main() {
 	defer pool.Close()
 	log.Printf("connected to db")
 
-	tripRepository := repo.NewTripRepository(pool)
-	tripService := usecase.NewTripService(tripRepository)
-	httpHandler := handler.NewHandler(tripService)
+	tripRepository := repo.NewTripRepository(pool, cfg.DB.QueryTimeout)
+	tripStatusHistoryRepository := repo.NewTripStatusRepository(pool, cfg.DB.QueryTimeout)
+	txManager := repo.NewTxManager(pool)
+	tripService := usecase.NewTripService(tripRepository, tripStatusHistoryRepository, txManager)
+	httpHandler := handler.NewHandler(tripService, pool, cfg.DB.QueryTimeout)
 	router := handler.NewRouter(httpHandler)
 
 	server := &http.Server{
@@ -51,7 +53,7 @@ func main() {
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Printf("HTTP server is listening on %s", cfg.Http.Addr)
-		serverErrors<-server.ListenAndServe()
+		serverErrors <- server.ListenAndServe()
 	}()
 
 	signalContext, stop := signal.NotifyContext(

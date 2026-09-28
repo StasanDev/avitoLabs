@@ -8,10 +8,10 @@ import (
 )
 
 type Config struct {
-	LogLevel        string
-	ShutdownTimeout time.Duration
-	Http            HttpConfig
-	DB              DBConfig
+	LogLevel         string
+	ShutdownTimeout  time.Duration
+	Http             HttpConfig
+	DB               DBConfig
 }
 
 type HttpConfig struct {
@@ -65,8 +65,8 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := Config{
-		LogLevel:        rawValues["LOG_LEVEL"],
-		ShutdownTimeout: durations["SHUTDOWN_TIMEOUT"],
+		LogLevel:         rawValues["LOG_LEVEL"],
+		ShutdownTimeout:  durations["SHUTDOWN_TIMEOUT"],
 		Http: HttpConfig{
 			Addr:              rawValues["HTTP_ADDR"],
 			ReadTimeout:       durations["HTTP_READ_TIMEOUT"],

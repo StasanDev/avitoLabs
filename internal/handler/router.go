@@ -10,6 +10,11 @@ import (
 func NewRouter(handler api.ServerInterface) http.Handler {
 	r := chi.NewRouter()
 
-	
-	return api.HandlerFromMux(handler, r)
+	return api.HandlerWithOptions(handler, api.ChiServerOptions{
+		BaseRouter: r,
+		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, _ error) {
+			writeProblem(w, r, http.StatusBadRequest,
+				"invalid_request", "Invalid request", "Request validation failed")
+		},
+	})
 }
