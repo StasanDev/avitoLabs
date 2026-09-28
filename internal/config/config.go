@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	LogLevel         string
-	ShutdownTimeout  time.Duration
-	Http             HttpConfig
-	DB               DBConfig
+	LogLevel        string
+	ShutdownTimeout time.Duration
+	IdempotencyTTL  time.Duration
+	Http            HttpConfig
+	DB              DBConfig
 }
 
 type HttpConfig struct {
@@ -32,14 +33,14 @@ type DBConfig struct {
 }
 
 var requiredEnvNames = []string{
-	"LOG_LEVEL", "SHUTDOWN_TIMEOUT", "HTTP_ADDR", "HTTP_READ_TIMEOUT",
+	"LOG_LEVEL", "SHUTDOWN_TIMEOUT", "IDEMPOTENCY_TTL", "HTTP_ADDR", "HTTP_READ_TIMEOUT",
 	"HTTP_READ_HEADER_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT",
 	"DATABASE_URL", "DATABASE_MIN_CONNS", "DATABASE_MAX_CONNS",
 	"DATABASE_CONNECT_TIMEOUT", "DATABASE_QUERY_TIMEOUT", "DATABASE_MAX_CONN_LIFETIME",
 }
 
 var durationEnvNames = []string{
-	"SHUTDOWN_TIMEOUT", "HTTP_READ_TIMEOUT",
+	"SHUTDOWN_TIMEOUT", "IDEMPOTENCY_TTL", "HTTP_READ_TIMEOUT",
 	"HTTP_READ_HEADER_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT",
 	"DATABASE_CONNECT_TIMEOUT", "DATABASE_QUERY_TIMEOUT", "DATABASE_MAX_CONN_LIFETIME",
 }
@@ -65,8 +66,9 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := Config{
-		LogLevel:         rawValues["LOG_LEVEL"],
-		ShutdownTimeout:  durations["SHUTDOWN_TIMEOUT"],
+		LogLevel:        rawValues["LOG_LEVEL"],
+		ShutdownTimeout: durations["SHUTDOWN_TIMEOUT"],
+		IdempotencyTTL:  durations["IDEMPOTENCY_TTL"],
 		Http: HttpConfig{
 			Addr:              rawValues["HTTP_ADDR"],
 			ReadTimeout:       durations["HTTP_READ_TIMEOUT"],

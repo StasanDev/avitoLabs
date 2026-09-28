@@ -21,3 +21,10 @@ type tripStatusHistoryRepository interface {
 type TxManager interface {
 	Do(ctx context.Context, fn func(ctx context.Context) error) error
 }
+
+type idempotencyRepository interface {
+	ReserveOrGet(
+		ctx context.Context,
+		record domain.IdempotencyRecord,
+	) (existing domain.IdempotencyRecord, reserved bool, err error)
+}

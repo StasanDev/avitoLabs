@@ -8,7 +8,7 @@ import (
 )
 
 type tripService interface {
-	CreateTrip(ctx context.Context, trip domain.TripInput) (domain.Trip, error)
+	CreateTrip(ctx context.Context, trip domain.TripInput) (domain.Trip, bool, error)
 	GetTrip(ctx context.Context, id uuid.UUID) (domain.Trip, error)
 	FinishTrip(ctx context.Context, id uuid.UUID) (domain.Trip, error)
 }

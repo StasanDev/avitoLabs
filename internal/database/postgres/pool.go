@@ -20,6 +20,7 @@ func NewPostgresPool(
 	poolCfg.MaxConns = cfg.MaxConns
 	poolCfg.MinConns = cfg.MinConns
 	poolCfg.MaxConnLifetime = cfg.MaxConnLifetime
+	poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

@@ -31,13 +31,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create postgres pool: %v", err)
 	}
-	defer pool.Close()
 	log.Printf("connected to db")
 
 	tripRepository := repo.NewTripRepository(pool, cfg.DB.QueryTimeout)
 	tripStatusHistoryRepository := repo.NewTripStatusRepository(pool, cfg.DB.QueryTimeout)
-	txManager := repo.NewTxManager(pool)
-	tripService := usecase.NewTripService(tripRepository, tripStatusHistoryRepository, txManager)
+	idempotencyRepository := repo.NewIdempotencyRepository(pool, cfg.DB.QueryTimeout)
+	txManager := repo.NewTxManager(pool, cfg.DB.QueryTimeout)
+	tripService := usecase.NewTripService(tripRepository, tripStatusHistoryRepository,
+		idempotencyRepository, txManager, cfg.IdempotencyTTL)
 	httpHandler := handler.NewHandler(tripService, pool, cfg.DB.QueryTimeout)
 	router := handler.NewRouter(httpHandler)
 
@@ -69,11 +70,34 @@ func main() {
 			log.Printf("HTTP server: %v", err)
 		}
 	case <-signalContext.Done():
-		shutdownCtx, cancelShutdown := context.WithTimeout(ctx, cfg.ShutdownTimeout)
-		defer cancelShutdown()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("graceful shutdown failed: %v", err)
-		}
 	}
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, cfg.ShutdownTimeout)
+	defer cancelShutdown()
+
+	if err := shutdown(shutdownCtx, server.Shutdown, pool.Close); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Printf("shutdown timeout exceeded; forcing exit: %v", err)
+			return
+		}
+		log.Printf("graceful shutdown failed: %v", err)
+	}
+
 	log.Printf("service stopped")
+}
+
+func shutdown(ctx context.Context, shutdownHTTP func(context.Context) error, close func()) error {
+	done := make(chan error, 1)
+	go func() {
+		err := shutdownHTTP(ctx)
+		close()
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

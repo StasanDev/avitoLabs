@@ -7,6 +7,7 @@ export HTTP_WRITE_TIMEOUT
 export HTTP_IDLE_TIMEOUT
 export LOG_LEVEL
 export SHUTDOWN_TIMEOUT
+export IDEMPOTENCY_TTL
 export DATABASE_URL
 export DATABASE_MAX_CONNS
 export DATABASE_MIN_CONNS
@@ -20,7 +21,7 @@ OPENAPI_SPEC = contracts/openapi/trip-service.openapi.yaml
 OPENAPI_OUTPUT = internal/generated/api.gen.go
 OPENAPI_OPERATIONS = createTrip,getTrip,finishTrip,health,ready
 
-.PHONY: build run test generate migrate migrate-down migrate-status check-database-url check-migrations
+.PHONY: build run test generate migrate migrate-down migrate-status 
 
 build:
 	go build ./...

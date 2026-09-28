@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -12,22 +13,28 @@ import (
 type TripService struct {
 	tripRepository              tripRepository
 	tripStatusHistoryRepository tripStatusHistoryRepository
+	idempotencyRepository       idempotencyRepository
 	txManager                   TxManager
+	idempotencyTTL              time.Duration
 }
 
 func NewTripService(
 	tripRepository tripRepository,
 	tripStatusHistoryRepository tripStatusHistoryRepository,
+	idempotencyRepository idempotencyRepository,
 	txManager TxManager,
+	idempotencyTTL time.Duration,
 ) *TripService {
 	return &TripService{
 		tripRepository:              tripRepository,
 		tripStatusHistoryRepository: tripStatusHistoryRepository,
+		idempotencyRepository:       idempotencyRepository,
 		txManager:                   txManager,
+		idempotencyTTL:              idempotencyTTL,
 	}
 }
 
-func (s *TripService) CreateTrip(ctx context.Context, tripInp domain.TripInput) (domain.Trip, error) {
+func (s *TripService) CreateTrip(ctx context.Context, tripInp domain.TripInput) (domain.Trip, bool, error) {
 	now := time.Now().UTC()
 	trip := domain.Trip{
 		TripInput:  tripInp,
@@ -45,7 +52,34 @@ func (s *TripService) CreateTrip(ctx context.Context, tripInp domain.TripInput) 
 		ChangedAt: now,
 	}
 
+	resultTrip := trip
+	replayed := false
 	err := s.txManager.Do(ctx, func(txCtx context.Context) error {
+		if tripInp.IdempotencyKey != nil {
+			idempotencyRecord := domain.IdempotencyRecord{
+				Key:         *tripInp.IdempotencyKey,
+				RequestHash: tripInp.RequestHash,
+				TripID:      trip.ID,
+				ExpiresAt:   now.Add(s.idempotencyTTL),
+			}
+
+			existingRecord, reserved, err := s.idempotencyRepository.ReserveOrGet(txCtx, idempotencyRecord)
+			if err != nil {
+				return fmt.Errorf("reserve or get idempotency key: %w", err)
+			}
+			if !reserved {
+				if !bytes.Equal(existingRecord.RequestHash, tripInp.RequestHash) {
+					return domain.ErrIdempotencyConflict
+				}
+
+				resultTrip, err = s.tripRepository.GetTrip(txCtx, existingRecord.TripID)
+				if err != nil {
+					return fmt.Errorf("get trip by idempotency key: %w", err)
+				}
+				replayed = true
+				return nil
+			}
+		}
 		if err := s.tripRepository.CreateTrip(txCtx, trip); err != nil {
 			return fmt.Errorf("create trip: %w", err)
 		}
@@ -55,10 +89,10 @@ func (s *TripService) CreateTrip(ctx context.Context, tripInp domain.TripInput) 
 		return nil
 	})
 	if err != nil {
-		return domain.Trip{}, err
+		return domain.Trip{}, false, err
 	}
 
-	return trip, nil
+	return resultTrip, replayed, nil
 }
 
 func (s *TripService) GetTrip(ctx context.Context, id uuid.UUID) (domain.Trip, error) {

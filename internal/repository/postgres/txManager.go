@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,11 +12,15 @@ import (
 type txContextKey struct{}
 
 type TxManager struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	queryTimeout time.Duration
 }
 
-func NewTxManager(pool *pgxpool.Pool) *TxManager {
-	return &TxManager{pool: pool}
+func NewTxManager(pool *pgxpool.Pool, queryTimeout time.Duration) *TxManager {
+	return &TxManager{
+		pool:         pool,
+		queryTimeout: queryTimeout,
+	}
 }
 
 func (m *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
@@ -23,17 +28,22 @@ func (m *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) 
 		return fn(ctx)
 	}
 
-	tx, err := m.pool.BeginTx(ctx, pgx.TxOptions{
+	beginCtx, cancelBegin := context.WithTimeout(ctx, m.queryTimeout)
+	tx, err := m.pool.BeginTx(beginCtx, pgx.TxOptions{
 		IsoLevel: pgx.ReadCommitted,
 	})
+	cancelBegin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 
+	rollbackBaseCtx := context.WithoutCancel(ctx)
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback(ctx)
+			rollbackCtx, cancelRollback := context.WithTimeout(rollbackBaseCtx, m.queryTimeout)
+			defer cancelRollback()
+			_ = tx.Rollback(rollbackCtx)
 		}
 	}()
 
@@ -42,7 +52,10 @@ func (m *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) 
 	if err := fn(ctx); err != nil {
 		return err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	commitCtx, cancelCommit := context.WithTimeout(ctx, m.queryTimeout)
+	err = tx.Commit(commitCtx)
+	cancelCommit()
+	if err != nil {
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 	committed = true

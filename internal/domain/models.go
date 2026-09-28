@@ -14,11 +14,13 @@ const (
 )
 
 type TripInput struct {
-	UserID     uuid.UUID
-	DriverID   uuid.UUID
-	StartPoint Coordinates
-	EndPoint   Coordinates
-	Price      int64
+	UserID         uuid.UUID
+	DriverID       uuid.UUID
+	StartPoint     Coordinates
+	EndPoint       Coordinates
+	Price          int64
+	IdempotencyKey *uuid.UUID
+	RequestHash    []byte
 }
 
 type Trip struct {
