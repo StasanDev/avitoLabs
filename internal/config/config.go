@@ -32,11 +32,19 @@ type DBConfig struct {
 	MaxConnLifetime time.Duration
 }
 
-var requiredEnvNames = []string{
+var envNames = []string{
 	"LOG_LEVEL", "SHUTDOWN_TIMEOUT", "IDEMPOTENCY_TTL", "HTTP_ADDR", "HTTP_READ_TIMEOUT",
 	"HTTP_READ_HEADER_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT",
 	"DATABASE_URL", "DATABASE_MIN_CONNS", "DATABASE_MAX_CONNS",
 	"DATABASE_CONNECT_TIMEOUT", "DATABASE_QUERY_TIMEOUT", "DATABASE_MAX_CONN_LIFETIME",
+}
+
+var defaultEnvValues = map[string]string{
+	"IDEMPOTENCY_TTL":          "24h",
+	"HTTP_READ_TIMEOUT":        "30s",
+	"HTTP_READ_HEADER_TIMEOUT": "5s",
+	"HTTP_WRITE_TIMEOUT":       "30s",
+	"HTTP_IDLE_TIMEOUT":        "60s",
 }
 
 var durationEnvNames = []string{
@@ -50,7 +58,7 @@ var int32EnvNames = [...]string{
 }
 
 func LoadConfig() (*Config, error) {
-	rawValues, err := readRequiredEnv(requiredEnvNames[:])
+	rawValues, err := readEnv(envNames[:], defaultEnvValues)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +101,15 @@ func LoadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-func readRequiredEnv(names []string) (map[string]string, error) {
+func readEnv(names []string, defaults map[string]string) (map[string]string, error) {
 	values := make(map[string]string, len(names))
 	for _, name := range names {
 		value, ok := os.LookupEnv(name)
 		if !ok || value == "" {
-			return nil, fmt.Errorf("environment variable %s is required", name)
+			value, ok = defaults[name]
+			if !ok {
+				return nil, fmt.Errorf("environment variable %s is required", name)
+			}
 		}
 		values[name] = value
 	}
