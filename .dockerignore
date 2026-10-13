@@ -1,0 +1,7 @@
+.vscode/
+.git/
+.env
+.tripgo/
+environment.toml
+bin/
+**/*_test.go

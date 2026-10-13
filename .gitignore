@@ -2,6 +2,8 @@
 .env
 .tripgo/
 
+.vscode
+
 # Сборка
 bin/
 
